@@ -14,3 +14,7 @@ So, decided to create console flappy bird game again, but this time in Go.
 ### Keyboard Shortcuts
 - **space**: up the bird
 - **tab**: Exit
+
+
+
+![](flappy.png)
