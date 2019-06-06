@@ -10,3 +10,7 @@ So, decided to create console flappy bird game again, but this time in Go.
     go get github.com/jroimartin/gocui
     go run flappy.go
     ```
+
+### Keyboard Shortcuts
+- **space**: up the bird
+- **tab**: Exit

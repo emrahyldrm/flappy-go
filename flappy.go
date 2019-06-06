@@ -73,9 +73,7 @@ func launchGame(g *gocui.Gui) error {
 				refreshBoard(g, v)
 			}
 		}()
-
 	}
-
 	return nil
 }
 
@@ -101,7 +99,7 @@ func birdDown(g *gocui.Gui, v *gocui.View) error {
 
 // update canvas
 func refreshBoard(g *gocui.Gui, v *gocui.View) error {
-	collided := false
+	isCollided := false
 	g.Update(func(g *gocui.Gui) error {
 		v, err := g.View("flappy")
 		if err != nil {
@@ -109,7 +107,7 @@ func refreshBoard(g *gocui.Gui, v *gocui.View) error {
 		}
 		if checkCollision() {
 			v.FgColor = gocui.ColorRed
-			collided = true
+			isCollided = true
 		}
 		v.Clear()
 		drawBird(birdPosition, v)
@@ -120,7 +118,7 @@ func refreshBoard(g *gocui.Gui, v *gocui.View) error {
 
 	// wait for ui updating
 	time.Sleep(50 * time.Millisecond)
-	if collided {
+	if isCollided {
 		os.Exit(0)
 	}
 	return nil
@@ -200,7 +198,9 @@ func drawBlock(tl point, br point, v *gocui.View) {
 }
 
 func checkCollision() bool {
-	return checkBottomCollision() || checkTopCollision() || checkPipeCollisions()
+	return checkBottomCollision() ||
+		checkTopCollision() ||
+		checkPipeCollisions()
 }
 
 func checkBottomCollision() bool {
@@ -214,7 +214,9 @@ func checkTopCollision() bool {
 func checkPipeCollisions() bool {
 
 	for _, pipeLoc := range pipeLocations {
-		if (birdPosition.y < pipeLoc.brFirst.y || birdPosition.y > pipeLoc.tlSecond.y) && birdPosition.x == pipeLoc.brFirst.x {
+		if (birdPosition.y < pipeLoc.brFirst.y ||
+			birdPosition.y > pipeLoc.tlSecond.y) &&
+			birdPosition.x == pipeLoc.brFirst.x {
 			return true
 		}
 	}
