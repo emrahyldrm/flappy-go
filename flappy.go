@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/jroimartin/gocui"
@@ -36,11 +37,11 @@ func main() {
 
 	g.SetManagerFunc(launchGame)
 
-	if err := g.SetKeybinding("", gocui.KeySpace, gocui.ModNone, quit); err != nil {
+	if err := g.SetKeybinding("", gocui.KeyTab, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
 
-	if err := g.SetKeybinding("", gocui.KeyTab, gocui.ModNone, birdUp); err != nil {
+	if err := g.SetKeybinding("", gocui.KeySpace, gocui.ModNone, birdUp); err != nil {
 		log.Panicln(err)
 	}
 
@@ -54,28 +55,35 @@ func main() {
 func launchGame(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 
-	if v, err := g.SetView("flappy", 0, 0, maxX-1, maxY-1); err != nil {
+	if v, err := g.SetView("flappy", 0, 0, maxX, maxY); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		birdPosition = point{x: 10, y: 10}
+		birdPosition = point{x: 25, y: 10}
 		v.FgColor = gocui.ColorYellow
 		vMaxX, vMaxY = v.Size()
-		rs := rand.NewSource(54)
+		rs := rand.NewSource(int64(time.Now().Second()))
 		rng = rand.New(rs)
 		pipePieceUnit = (vMaxY - 2) / 9
-		pipeLocations[0] = calculateNewPipePosition()
 
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		go func() {
 			for range ticker.C {
-				birdDown(g, v)
+				advanceGame()
 				refreshBoard(g, v)
 			}
 		}()
 
 	}
 
+	return nil
+}
+
+// take the game one step ahead
+// bird down, pipes move etc.
+func advanceGame() error {
+	birdDown(nil, nil)
+	floatPipes()
 	return nil
 }
 
@@ -93,17 +101,28 @@ func birdDown(g *gocui.Gui, v *gocui.View) error {
 
 // update canvas
 func refreshBoard(g *gocui.Gui, v *gocui.View) error {
+	collided := false
 	g.Update(func(g *gocui.Gui) error {
 		v, err := g.View("flappy")
 		if err != nil {
 
 		}
+		if checkCollision() {
+			v.FgColor = gocui.ColorRed
+			collided = true
+		}
 		v.Clear()
 		drawBird(birdPosition, v)
 		drawBorders(v)
-		drawPipe(v)
+		drawPipes(v)
 		return nil
 	})
+
+	// wait for ui updating
+	time.Sleep(50 * time.Millisecond)
+	if collided {
+		os.Exit(0)
+	}
 	return nil
 }
 
@@ -111,36 +130,59 @@ func refreshBoard(g *gocui.Gui, v *gocui.View) error {
 func drawBird(p point, v *gocui.View) {
 	v.SetCursor(p.x, p.y)
 	v.EditWrite('@')
-
 }
 
 func calculateNewPipePosition() pipeLocation {
 	var pipeLoc pipeLocation
 	firstPieceVolume := rng.Intn(8)
 
-	pipeLoc.tlFirst.x = vMaxX - 18
+	pipeLoc.tlFirst.x = vMaxX - 5
 	pipeLoc.tlFirst.y = 1
-	pipeLoc.brFirst.x = vMaxX - 15
+	pipeLoc.brFirst.x = vMaxX - 2
 	pipeLoc.brFirst.y = pipeLoc.tlFirst.y + (firstPieceVolume * pipePieceUnit)
 
-	pipeLoc.tlSecond.x = vMaxX - 18
-	pipeLoc.tlSecond.y = pipeLoc.brFirst.y + pipePieceUnit
-	pipeLoc.brSecond.x = vMaxX - 15
+	pipeLoc.tlSecond.x = vMaxX - 5
+	pipeLoc.tlSecond.y = pipeLoc.brFirst.y + pipePieceUnit*2
+	pipeLoc.brSecond.x = vMaxX - 2
 	pipeLoc.brSecond.y = vMaxY - 1
 
 	return pipeLoc
 }
 
 //
-func drawPipe(v *gocui.View) {
-	drawBlock(pipeLocations[0].tlFirst, pipeLocations[0].brFirst, v)
-	drawBlock(pipeLocations[0].tlSecond, pipeLocations[0].brSecond, v)
+func floatPipes() {
+	for ix := range pipeLocations {
+		pipeLocations[ix].tlFirst.x--
+		pipeLocations[ix].brFirst.x--
+		pipeLocations[ix].tlSecond.x--
+		pipeLocations[ix].brSecond.x--
+	}
+}
+
+//
+func drawPipes(v *gocui.View) {
+
+	if pipeLocations[1].tlFirst.x < vMaxX/2 {
+		pipeLocations[0] = pipeLocations[1]
+		pipeLocations[1] = calculateNewPipePosition()
+	}
+
+	for _, pLoc := range pipeLocations {
+		drawPipe(pLoc, v)
+	}
+
+}
+
+// draw pipe using pipe location
+func drawPipe(pLoc pipeLocation, v *gocui.View) error {
+	drawBlock(pLoc.tlFirst, pLoc.brFirst, v)
+	drawBlock(pLoc.tlSecond, pLoc.brSecond, v)
+
+	return nil
 }
 
 // draw top and bottom borders
 func drawBorders(v *gocui.View) error {
-
-	// draw top and bottom edge borders
 	drawBlock(point{x: 0, y: 0}, point{x: vMaxX - 1, y: 0}, v)
 	drawBlock(point{x: 0, y: vMaxY - 1}, point{x: vMaxX - 1, y: vMaxY - 1}, v)
 
@@ -148,25 +190,35 @@ func drawBorders(v *gocui.View) error {
 }
 
 // the function draws a block both horizontal and vertical
-func drawBlock(p1 point, p2 point, v *gocui.View) {
-
-	for y := p1.y; y <= p2.y; y++ {
-		for x := p1.x; x <= p2.x; x++ {
+func drawBlock(tl point, br point, v *gocui.View) {
+	for y := tl.y; y <= br.y; y++ {
+		for x := tl.x; x <= br.x; x++ {
 			v.SetCursor(x, y)
 			v.EditWrite('#')
 		}
 	}
 }
 
+func checkCollision() bool {
+	return checkBottomCollision() || checkTopCollision() || checkPipeCollisions()
+}
+
 func checkBottomCollision() bool {
-	return birdPosition.y == vMaxY-1
+	return birdPosition.y > vMaxY-1
 }
 
 func checkTopCollision() bool {
-	return birdPosition.y == 0
+	return birdPosition.y < 1
 }
 
 func checkPipeCollisions() bool {
+
+	for _, pipeLoc := range pipeLocations {
+		if (birdPosition.y < pipeLoc.brFirst.y || birdPosition.y > pipeLoc.tlSecond.y) && birdPosition.x == pipeLoc.brFirst.x {
+			return true
+		}
+	}
+
 	return false
 }
 
