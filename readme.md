@@ -1,8 +1,8 @@
 ## Flappy Bird on Console
 
-I think best way to learning a new programming language is coding, especially doing it by recoding previous projects.
+Some coding exercises when learning golang.
 
-So, decided to create console flappy bird game again, but this time in Go.
+Flappy bird game again, but this time in Go.
 
 * [**gocui**](https://github.com/jroimartin/gocui) was used for command line interfacing
 
